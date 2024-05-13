@@ -20,4 +20,12 @@
       <Filter>Exception</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="Exception.asm">
+      <Filter>Exception</Filter>
+    </CustomBuild>
+    <CustomBuild Include="syscall.asm">
+      <Filter>Exception</Filter>
+    </CustomBuild>
+  </ItemGroup>
 </Project>

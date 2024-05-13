@@ -54,7 +54,7 @@ void InitializeException(HMODULE self_module)
     {
         exception = std::make_shared<Exception>();
 		exception->InstallException(ExceptionHandler);
-		auto value = exception->SetHardWareBreakPoint(L"ntdll.dll", 0x455, (DWORD64)::GetModuleHandleA("ntdll.dll") + 0x9176, 0x0, 0x0, 0x0);
+		auto value = exception->SetHardWareBreakPoint(L"crossfire.exel", 0x455, (DWORD64)::GetModuleHandleA("ACE-Base64.dl") + 0x9176, 0x0, 0x0, 0x0);
 		printf("value:%d\n", value);
     }
     catch (const std::shared_ptr<ExceptionError>& e)

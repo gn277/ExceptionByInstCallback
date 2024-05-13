@@ -8,11 +8,14 @@ LONG WINAPI ExceptionHandler(PEXCEPTION_RECORD exception_record, PCONTEXT contex
 	{
 		if (exception_record->ExceptionAddress == (PVOID64)exception->_dr0)
 		{
-			printf("init...\n");
-			::MessageBoxA(::GetActiveWindow(), "initialize hook", "Error", MB_OK);
+			std::cout << "caller address: " << std::hex << *(DWORD64*)context->Rsi << std::endl;
+			std::cout << "callee address: " << std::hex << *(DWORD64*)(context->Rbx + 0x20) << std::endl;
 
-			context->Rax = 0xE5;
-			context->Rip = exception->_dr0 + 0x05;
+			context->Rip = exception->_dr0 + 0x07;
+			//ACE-Base64.dll + 815844 - 48 89 47 08 -	mov[rdi + 08], rax			//Hookµã
+			//ACE-Base64.dll + 815848 - FF 53 20 -		call qword ptr[rbx + 20]	//Ìø¹ýÖ´ÐÐ
+			//ACE-Base64.dll + 81584B - 48 8B 1B -		mov rbx, [rbx]
+
 			return EXCEPTION_CONTINUE_EXECUTION;
 		}
 		else if (exception_record->ExceptionAddress == (PVOID64)exception->_dr1)
@@ -54,7 +57,15 @@ void InitializeException(HMODULE self_module)
     {
         exception = std::make_shared<Exception>();
 		exception->InstallException(ExceptionHandler);
-		auto value = exception->SetHardWareBreakPoint(L"crossfire.exel", 0x455, (DWORD64)::GetModuleHandleA("ACE-Base64.dl") + 0x9176, 0x0, 0x0, 0x0);
+
+		DWORD64 ace_base_module = 0;
+		while (true)
+		{
+			ace_base_module = (DWORD64)::GetModuleHandleA("ACE-Base64.dll");
+			if (ace_base_module > 0x1000)
+				break;
+		}
+		auto value = exception->SetHardWareBreakPoint(L"crossfire.exe", 0x455, ace_base_module + 0x815844, 0x0, 0x0, 0x0);
 		printf("value:%d\n", value);
     }
     catch (const std::shared_ptr<ExceptionError>& e)

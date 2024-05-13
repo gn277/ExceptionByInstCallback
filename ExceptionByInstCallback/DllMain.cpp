@@ -8,14 +8,14 @@ LONG WINAPI ExceptionHandler(PEXCEPTION_RECORD exception_record, PCONTEXT contex
 	{
 		if (exception_record->ExceptionAddress == (PVOID64)exception->_dr0)
 		{
-			std::cout << "caller address: " << std::hex << *(DWORD64*)context->Rsi << std::endl;
-			std::cout << "callee address: " << std::hex << *(DWORD64*)(context->Rbx + 0x20) << std::endl;
-
-			context->Rip = exception->_dr0 + 0x07;
 			//ACE-Base64.dll + 815844 - 48 89 47 08 -	mov[rdi + 08], rax			//Hookµã
 			//ACE-Base64.dll + 815848 - FF 53 20 -		call qword ptr[rbx + 20]	//Ìø¹ýÖ´ÐÐ
 			//ACE-Base64.dll + 81584B - 48 8B 1B -		mov rbx, [rbx]
 
+			std::cout << "caller address: " << std::hex << *(DWORD64*)context->Rsi << std::endl;
+			std::cout << "callee address: " << std::hex << *(DWORD64*)(context->Rbx + 0x20) << std::endl;
+
+			context->Rip = exception->_dr0 + 0x07;
 			return EXCEPTION_CONTINUE_EXECUTION;
 		}
 		else if (exception_record->ExceptionAddress == (PVOID64)exception->_dr1)
@@ -26,7 +26,6 @@ LONG WINAPI ExceptionHandler(PEXCEPTION_RECORD exception_record, PCONTEXT contex
 		{
 			return EXCEPTION_CONTINUE_EXECUTION;
 		}
-		//¾²Ä¬×·×Ù
 		else if (exception_record->ExceptionAddress == (PVOID64)exception->_dr3)
 		{
 			return EXCEPTION_CONTINUE_EXECUTION;

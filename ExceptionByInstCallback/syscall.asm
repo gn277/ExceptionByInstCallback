@@ -10,6 +10,15 @@
         ret
 	NtSetContextThreadProc ENDP
 
+	NtGetContextThreadProc PROC
+	    mov        r10, rcx
+        mov        eax, 00000000H
+        add        rsp, 16
+        syscall
+        sub        rsp, 16
+        ret
+	NtGetContextThreadProc ENDP
+
 	NtSuspendThreadProc PROC
 	    mov        r10, rcx
         mov        eax, 00000000H

@@ -2,6 +2,8 @@
 
 #define ThreadQuerySetWin32StartAddress 0x09
 
+#define NT_SUCCESS(Status) (((NTSTATUS)(Status)) >= 0)
+
 typedef struct _PROCESS_INSTRUMENTATION_CALLBACK_INFORMATION
 {
 	ULONG Version;
@@ -9,10 +11,11 @@ typedef struct _PROCESS_INSTRUMENTATION_CALLBACK_INFORMATION
 	PVOID Callback;
 } PROCESS_INSTRUMENTATION_CALLBACK_INFORMATION, * PPROCESS_INSTRUMENTATION_CALLBACK_INFORMATION;
 
-typedef LONG(WINAPI* pfnNtSetContextThread)(IN HANDLE ThreadHandle, IN PCONTEXT Context);
-typedef LONG(WINAPI* pfnNtSuspendThread)(IN HANDLE ThreadHandle, OUT PULONG PreviousSuspendCount OPTIONAL);
-typedef LONG(WINAPI* pfnNtResumeThread)(IN HANDLE ThreadHandle, OUT PULONG PreviousSuspendCount OPTIONAL);
-typedef LONG(WINAPI* pfnNtContinue)(IN PCONTEXT Context, IN BOOLEAN TestAlert); 
+using  pfnNtSetContextThread = LONG(WINAPI*)(IN HANDLE ThreadHandle, IN PCONTEXT Context);
+using pfnNtGetContextThread = LONG(__stdcall*)(IN HANDLE ThreadHandle, OUT PCONTEXT Context);
+using pfnNtSuspendThread = LONG(WINAPI*)(IN HANDLE ThreadHandle, OUT PULONG PreviousSuspendCount OPTIONAL);
+using pfnNtResumeThread = LONG(WINAPI*)(IN HANDLE ThreadHandle, OUT PULONG PreviousSuspendCount OPTIONAL);
+using pfnNtContinue = LONG(WINAPI*)(IN PCONTEXT Context, IN BOOLEAN TestAlert);
 
 extern "C" LONG(__stdcall * ZwQueryInformationThread)(IN HANDLE ThreadHandle, IN THREADINFOCLASS ThreadInformationClass, OUT PVOID ThreadInformation, IN ULONG ThreadInformationLength, OUT PULONG ReturnLength OPTIONAL) = NULL;
 extern "C" NTSTATUS NTAPI NtSetInformationProcess(HANDLE ProcessHandle, ULONG ProcessInformationClass, PVOID ProcessInformation, ULONG ProcessInformationLength);
@@ -23,13 +26,13 @@ extern "C" void NtContinueProc();
 extern "C" void NtResumeThreadProc();
 extern "C" void NtSuspendThreadProc();
 extern "C" void NtSetContextThreadProc();
-
-std::shared_ptr<Exception> exception = nullptr;
+extern "C" void NtGetContextThreadProc();
 
 pfnNtContinue NtContinue = nullptr;
 pfnNtResumeThread NtResumeThread = nullptr;
 pfnNtSuspendThread NtSuspendThread = nullptr;
 pfnNtSetContextThread NtSetContextThread = nullptr;
+pfnNtGetContextThread NtGetContextThread = nullptr;
 DWORD64 sysret_address = 0, rtl_restore_context_offset = 0;
 
 
@@ -226,6 +229,11 @@ bool Exception::InstallException(pfnExceptionHandlerApi p_exception_api)
 	*(DWORD*)((DWORD64)&NtSetContextThreadProc + 0x04) = (DWORD)GetSSDTIndexByName("NtSetContextThread");
 	::VirtualProtect((PVOID)((DWORD64)&NtSetContextThreadProc + 0x04), 4, old, NULL);
 
+	NtGetContextThread = (pfnNtGetContextThread)NtGetContextThreadProc;
+	::VirtualProtect((PVOID)((DWORD64)&NtGetContextThreadProc + 0x04), 4, PAGE_EXECUTE_READWRITE, &old);
+	*(DWORD*)((DWORD64)&NtGetContextThreadProc + 0x04) = (DWORD)GetSSDTIndexByName("NtGetContextThread");
+	::VirtualProtect((PVOID)((DWORD64)&NtGetContextThreadProc + 0x04), 4, old, NULL);
+
 	NtSuspendThread = (pfnNtSuspendThread)NtSuspendThreadProc;
 	::VirtualProtect((PVOID)((DWORD64)&NtSuspendThreadProc + 0x04), 4, PAGE_EXECUTE_READWRITE, &old);
 	*(DWORD*)((DWORD64)&NtSuspendThreadProc + 0x04) = (DWORD)GetSSDTIndexByName("NtSuspendThread");
@@ -314,19 +322,20 @@ int Exception::SetHardWareBreakPoint(const wchar_t* main_modulename, DWORD64 dr7
 							//设置硬件断点
 							CONTEXT thread_context = { CONTEXT_DEBUG_REGISTERS };
 							thread_context.ContextFlags = CONTEXT_ALL;
-							//得到指定线程的环境（上下文）
-							if (!GetThreadContext(h_hook_thread, &thread_context))
+
+							//得到指定线程的环境（上下文
+							if (!NT_SUCCESS(NtGetContextThread(h_hook_thread, &thread_context)))
 								return 3;
+
+							//设置硬件断点地址
 							thread_context.Dr0 = dr0;
 							thread_context.Dr1 = dr1;
 							thread_context.Dr2 = dr2;
 							thread_context.Dr3 = dr3;
+							//每个硬断开启状态
 							thread_context.Dr7 = dr7_statu;
-							if (NtSetContextThread(h_hook_thread, &thread_context) != NULL)
+							if (!NT_SUCCESS(NtSetContextThread(h_hook_thread, &thread_context)))
 								return 4;
-
-							if (!GetThreadContext(h_hook_thread, &thread_context))
-								return 3;
 
 							//恢复线程
 							NtResumeThread(h_hook_thread, &previous_count);
@@ -351,7 +360,7 @@ void MyCallbackRoutine(CONTEXT* context)
 	context->Rcx = context->R10;
 
 	if (context->Rip == sysret_address)
-		if (exception->_self_exception_api((PEXCEPTION_RECORD)(context->Rsp + 0x4F0), (PCONTEXT)context->Rsp) == EXCEPTION_CONTINUE_EXECUTION)
+		if (Exception::GetInstance()->_self_exception_api((PEXCEPTION_RECORD)(context->Rsp + 0x4F0), (PCONTEXT)context->Rsp) == EXCEPTION_CONTINUE_EXECUTION)
 			context->Rip = rtl_restore_context_offset;
 
 	NtContinue(context, 0);

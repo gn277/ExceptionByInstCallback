@@ -28,7 +28,16 @@ public:
 
 class Exception
 {
+public:
+	static std::shared_ptr<Exception> GetInstance()
+	{
+		static std::shared_ptr<Exception> instance(new Exception());
+		return instance;
+	}
+	~Exception();
 private:
+	Exception();
+
 	typedef LONG(__stdcall* pfnExceptionHandlerApi)(PEXCEPTION_RECORD ExceptionRecord, PCONTEXT context);
 
 public:
@@ -38,10 +47,6 @@ public:
 	DWORD64 _dr3 = 0;
 
 	pfnExceptionHandlerApi _self_exception_api = nullptr;
-
-public:
-	Exception();
-	~Exception();
 
 private:
 	ULONG GetSSDTIndexByName(const char* function_name);
@@ -53,7 +58,3 @@ public:
 	int SetHardWareBreakPoint(const wchar_t* main_modulename, DWORD64 dr7_statu, DWORD64 dr0, DWORD64 dr1, DWORD64 dr2, DWORD64 dr3);
 
 };
-
-
-extern "C" std::shared_ptr<Exception> exception;
-
